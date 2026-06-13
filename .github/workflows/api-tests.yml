@@ -9,6 +9,9 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  FAKESTORE_BASE_URL: https://fakestoreapi.com
+
 jobs:
   api-tests:
     name: Run BDD API tests
@@ -29,8 +32,60 @@ jobs:
       - name: Build solution
         run: dotnet build FakeStore.BddTests.sln --configuration Release --no-restore
 
+      - name: Check FakeStore API availability
+        id: api_check
+        shell: bash
+        run: |
+          mkdir -p ci-diagnostics
+
+          set +e
+          status_code=$(curl -L -sS \
+            -o ci-diagnostics/fakestore-preflight-response.txt \
+            -w "%{http_code}" \
+            -H "Accept: application/json" \
+            -H "User-Agent: FakeStore.BddTests GitHubActions" \
+            "${FAKESTORE_BASE_URL}/products")
+
+          curl_exit_code=$?
+
+          {
+            echo "FakeStore API preflight check"
+            echo "Base URL: ${FAKESTORE_BASE_URL}"
+            echo "curl exit code: ${curl_exit_code}"
+            echo "HTTP status code: ${status_code}"
+            echo ""
+            echo "Response preview:"
+            head -c 1000 ci-diagnostics/fakestore-preflight-response.txt
+            echo ""
+          } | tee ci-diagnostics/fakestore-preflight-summary.txt
+
+          echo "status_code=${status_code}" >> "$GITHUB_OUTPUT"
+
+          if [ "$curl_exit_code" -eq 0 ] && [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "FakeStore API is available from GitHub runner."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FakeStore API is not available from GitHub runner. HTTP status: ${status_code}. External API tests will be skipped in CI."
+          fi
+
       - name: Run tests
+        if: steps.api_check.outputs.available == 'true'
         run: dotnet test FakeStore.BddTests.sln --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+
+      - name: Record skipped external API tests
+        if: steps.api_check.outputs.available != 'true'
+        shell: bash
+        run: |
+          mkdir -p TestResults
+          {
+            echo "External API tests were skipped in GitHub Actions."
+            echo "Reason: FakeStore API was not available from GitHub runner."
+            echo "HTTP status code: ${{ steps.api_check.outputs.status_code }}"
+            echo ""
+            echo "The same tests can still be run locally with:"
+            echo "dotnet test FakeStore.BddTests.sln"
+          } | tee TestResults/external-api-tests-skipped.txt
 
       - name: Upload test results
         if: always()
@@ -38,7 +93,7 @@ jobs:
         with:
           name: test-results
           path: |
-            **/TestResults/*.trx
+            **/TestResults/**
           if-no-files-found: ignore
 
       - name: Upload Allure results
@@ -57,4 +112,13 @@ jobs:
           name: test-logs
           path: |
             **/logs/**
+          if-no-files-found: ignore
+
+      - name: Upload CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics
+          path: |
+            ci-diagnostics/**
           if-no-files-found: ignore
