@@ -1,0 +1,66 @@
+# Build output
+
+bin/
+obj/
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+# Test results
+
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Allure generated files
+
+allure-results/
+allure-report/
+
+# Logs
+
+logs/
+*.log
+
+# IDE files
+
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / ReSharper
+
+_ReSharper*/
+*.DotSettings.user
+
+# NuGet
+
+*.nupkg
+packages/
+.nuget/
+
+# OS files
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment files
+
+.env
+.env.*
+!.env.example
+
+# Temporary files
+
+*.tmp
+*.temp
+*.bak
+*.swp
